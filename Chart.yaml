@@ -1,0 +1,6 @@
+apiVersion: v2
+name: pytorch-job-chart
+description: Pytorch NCCL multi-node tester
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

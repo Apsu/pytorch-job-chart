@@ -1,0 +1,15 @@
+# templates/service.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-service
+  namespace: {{ .Values.namespace }}
+spec:
+  clusterIP: None  # Headless service for DNS resolution
+  selector:
+    app: {{ .Release.Name }}-job
+  ports:
+    - port: {{ .Values.rdzv_port }}
+      targetPort: {{ .Values.rdzv_port }}
+      name: rendezvous

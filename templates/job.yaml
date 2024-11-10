@@ -1,0 +1,118 @@
+# templates/job.yaml
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-job
+  namespace: {{ .Values.namespace }}
+spec:
+  completions: {{ .Values.replicas }}
+  parallelism: {{ .Values.replicas }}
+  backoffLimitPerIndex: {{ .Values.backoff_limit }}
+  completionMode: Indexed
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-job
+    spec:
+      restartPolicy: OnFailure
+      subdomain: {{ .Release.Name }}-service
+      containers:
+      - name: pytorch
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        command:
+        - torchrun
+        args:
+        - --max-restarts={{ .Values.max_restarts }}
+        - --nproc-per-node={{ .Values.gpus_per_node }}
+        - --nnodes={{ .Values.replicas }}
+        - --node-rank=$(JOB_COMPLETION_INDEX)
+        - --rdzv-id={{ .Release.Name }}
+        - --rdzv-backend=c10d
+        - --rdzv-endpoint={{ .Release.Name }}-job-0.{{ .Release.Name }}-service.{{ .Values.namespace }}.svc.cluster.local:{{ .Values.rdzv_port }}
+        # - --
+        - /workspace/benchmarks/communication/run_all.py
+        # - --master_addr={{ .Release.Name }}-job-0.{{ .Release.Name }}-service.{{ .Values.namespace }}.svc.cluster.local
+        # - --master_port={{ .Values.rdzv_port }}
+        # - --num_nodes={{ .Values.replicas }}
+        # - --num_gpus={{ .Values.gpus_per_node }}
+        # - --test={{ .Values.script_args.test }}
+        # - --batch={{ .Values.script_args.batch }}
+        # - --repeat={{ .Values.script_args.repeat }}
+        # - --start={{ .Values.script_args.start }}
+        # - --stop={{ .Values.script_args.stop }}
+        # - --backend=nccl # default
+        # - --arch={{ .Values.script_args.arch }}
+        # - --batch_size={{ .Values.script_args.batch_size }}
+        # - --learning_rate={{ .Values.script_args.learning_rate }}
+        # - --num_epochs={{ .Values.script_args.num_epochs }}
+        # - --steps_syn={{ .Values.script_args.steps_syn }}
+        # - --use_syn
+        - --scan
+        - --maxsize=24
+        - --dist=torch
+        - --all-reduce
+        - --bw-unit=GBps
+        - --trials=10
+        - --warmups=5
+        - --async-op
+        # - --debug
+        - --mem-factor=.1
+        env:
+        - name: NODE_COUNT
+          value: "{{ .Values.replicas }}"
+        - name: GPUS_PER_NODE
+          value: "{{ .Values.gpus_per_node }}"
+        - name: OMP_NUM_THREADS
+          value: "{{ .Values.env.omp_num_threads }}"
+        - name: NCCL_ALGO
+          value: "{{ .Values.env.nccl_algo }}"
+        - name: NCCL_DEBUG
+          value: "{{ .Values.env.nccl_debug }}"
+        - name: NCCL_IB_DISABLE
+          value: "{{ .Values.env.nccl_ib_disable }}"
+        - name: NCCL_IB_HCA
+          value: "{{ .Values.env.nccl_ib_hca }}"
+        - name: NCCL_MIN_NCHANNELS
+          value: "{{ .Values.env.nccl_min_nchannels }}"
+        - name: NCCL_NET_GDR_LEVEL
+          value: "{{ .Values.env.nccl_net_gdr_level }}"
+        - name: NCCL_P2P_LEVEL
+          value: "{{ .Values.env.nccl_p2p_level }}"
+        - name: NCCL_SOCKET_IFNAME
+          value: "eth0"
+        - name: NCCL_SOCKET_FAMILY
+          value: "AF_INET"  # Use IPv4 instead of IPv6
+        resources:
+          limits:
+            # cpu:
+            memory: 256Gi
+            nvidia.com/gpu: {{ .Values.gpus_per_node }}
+            rdma/{{ .Values.rdma_shared_device }}: 1
+          requests:
+            cpu: 64
+            memory: 256Gi
+            nvidia.com/gpu: {{ .Values.gpus_per_node }}
+            rdma/{{ .Values.rdma_shared_device }}: 1
+        securityContext:
+          # privileged: true
+          capabilities:
+            add:
+            - IPC_LOCK
+        volumeMounts:
+        - name: pytorch-script
+          mountPath: /workspace/train.py
+          subPath: train.py
+        - name: shm
+          mountPath: /dev/shm
+      tolerations:
+      - key: nvidia.com/gpu
+        value: "true"
+      volumes:
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: {{ .Values.shm_size }}
+      - name: pytorch-script
+        configMap:
+          name: {{ .Release.Name }}-script

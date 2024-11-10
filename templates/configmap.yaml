@@ -1,0 +1,10 @@
+# templates/configmap.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-script
+  namespace: {{ .Values.namespace }}
+data:
+  train.py: |
+{{ .Files.Get "files/resnet.py" | indent 4 }}

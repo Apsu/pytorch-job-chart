@@ -1,0 +1,43 @@
+# values.yaml
+
+# Image details
+image:
+  repository: nvcr.io/nvidia/pytorch
+  tag: "24.05-py3"
+
+# Namespace
+namespace: pytorch
+
+# Workload configuration
+replicas: 32  # Number of nodes in total (1 master + n workers)
+gpus_per_node: 8
+
+# Job configuration
+backoff_limit: 0 # Number of per-index restarts before job fails
+max_restarts: 0 # Number of whole-job restarts before failed
+rdzv_port: 29500
+
+# Script parameters for resnet
+script_args:
+  arch: resnet152
+  batch_size: 512
+  learning_rate: 0.1
+  num_epochs: 100
+  steps_syn: 20
+
+# Environment variables
+env:
+  omp_num_threads: "8" # threads * gpus_per_node < cores per pod
+  nccl_algo: "NVLSTree" # NVLS = SHARP, RING = Normal RDMA
+  nccl_debug: "WARN" # WARN, INFO, DEBUG
+  nccl_ib_disable: "0"
+  nccl_ib_hca: "=mlx5_0,mlx5_1,mlx5_2,mlx5_3,mlx5_4,mlx5_5,mlx5_6,mlx5_9"
+  nccl_min_nchannels: "32"
+  nccl_net_gdr_level: "PIX" # Favor RDMA
+  nccl_p2p_level: "NVL" # Favor NVLink
+
+# Shared RDMA resource label
+rdma_shared_device: "rdma_shared_device_a"
+
+# Shared memory size
+shm_size: 32Gi
